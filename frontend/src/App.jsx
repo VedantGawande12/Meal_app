@@ -15,6 +15,9 @@ function App() {
   const [diet, setDiet] = useState('')
   const [recipeLoading, setRecipeLoading] = useState(false)
   const [recipeError, setRecipeError] = useState('')
+  const [selectedRecipe, setSelectedRecipe] = useState(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [detailError, setDetailError] = useState('')
 
   const loadRecipes = async (query = recipeQuery, selectedDiet = diet) => {
     setRecipeLoading(true)
@@ -30,6 +33,23 @@ function App() {
       setRecipeError(error.message)
     } finally {
       setRecipeLoading(false)
+    }
+  }
+
+  const openRecipe = async (recipeId) => {
+    setDetailLoading(true)
+    setDetailError('')
+
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/recipes/${recipeId}`)
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload.error || 'Recipe details could not be loaded.')
+      setSelectedRecipe(payload)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    } catch (error) {
+      setDetailError(error.message)
+    } finally {
+      setDetailLoading(false)
     }
   }
 
@@ -94,6 +114,26 @@ function App() {
           <div className="account-area"><span>{user.email}</span><button type="button" className="secondary-button" onClick={handleSignOut}>Sign out</button></div>
         </header>
         <section className="dashboard-content">
+          {selectedRecipe ? (
+            <section className="recipe-detail">
+              <button type="button" className="back-button" onClick={() => setSelectedRecipe(null)}>&#8592; Back to recipes</button>
+              {detailError && <div className="recipe-feedback"><p>{detailError}</p><button type="button" className="text-button" onClick={() => openRecipe(selectedRecipe.id)}>Try again</button></div>}
+              <div className="recipe-detail-hero">
+                <img src={selectedRecipe.image} alt="" />
+                <div className="recipe-detail-heading">
+                  <p className="eyebrow">{selectedRecipe.dishTypes?.[0] || 'Recipe'}</p>
+                  <h1>{selectedRecipe.title}</h1>
+                  <p className="recipe-summary" dangerouslySetInnerHTML={{ __html: selectedRecipe.summary || 'A recipe worth making.' }} />
+                  <div className="recipe-stats"><span>{selectedRecipe.readyInMinutes || '-'} min</span><span>{selectedRecipe.servings || '-'} servings</span>{selectedRecipe.vegetarian && <span>Vegetarian</span>}</div>
+                </div>
+              </div>
+              <div className="recipe-detail-body">
+                <div className="ingredients-column"><p className="eyebrow">Gather your ingredients</p><h2>What you need</h2><ul>{(selectedRecipe.extendedIngredients || []).map((ingredient) => <li key={ingredient.id || ingredient.original}>{ingredient.original}</li>)}</ul></div>
+                <div className="instructions-column"><p className="eyebrow">Take it step by step</p><h2>How to make it</h2>{selectedRecipe.analyzedInstructions?.[0]?.steps?.length ? <ol>{selectedRecipe.analyzedInstructions[0].steps.map((step) => <li key={step.number}><span>{step.number}</span><p>{step.step}</p></li>)}</ol> : <p className="no-instructions">Instructions are not available for this recipe yet.</p>}</div>
+              </div>
+            </section>
+          ) : (
+            <>
           <div className="dashboard-heading">
             <div><p className="eyebrow">Your personal table</p><h1>What are we<br /><em>cooking today?</em></h1></div>
             <p className="dashboard-copy">A little inspiration from Spoonacular, ready whenever you are.</p>
@@ -109,10 +149,13 @@ function App() {
           {!recipeLoading && !recipeError && recipes.length === 0 && <div className="empty-state"><p className="eyebrow">Nothing on the table yet</p><h2>Search for a dish<br />to get started.</h2></div>}
           <div className="recipe-grid">
             {recipes.map((recipe) => <article className="recipe-card" key={recipe.id}>
-              <a href={recipe.sourceUrl || `https://spoonacular.com/recipes/${recipe.title}-${recipe.id}`} target="_blank" rel="noreferrer"><img src={recipe.image} alt="" loading="lazy" /><span className="recipe-link">View recipe &#8599;</span></a>
+              <button type="button" className="recipe-image-button" onClick={() => openRecipe(recipe.id)} disabled={detailLoading}><img src={recipe.image} alt="" loading="lazy" /><span className="recipe-link">Read recipe &#8594;</span></button>
               <div className="recipe-card-copy"><p className="recipe-type">{recipe.dishTypes?.[0] || 'Recipe'}</p><h2>{recipe.title}</h2><p className="recipe-meta">{recipe.readyInMinutes ? `${recipe.readyInMinutes} min` : 'Recipe details'}{recipe.servings ? ` · ${recipe.servings} servings` : ''}</p></div>
             </article>)}
           </div>
+            </>
+          )}
+          {detailLoading && <p className="detail-loading">Opening your recipe...</p>}
         </section>
       </main>
     )
